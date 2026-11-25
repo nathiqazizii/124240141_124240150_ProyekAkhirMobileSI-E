@@ -34,3 +34,11 @@ Hasil: `build/app/outputs/flutter-apk/app-release.apk`
 
 Jalankan `supabase/schema.sql` di Supabase **SQL Editor**. Untuk pengembangan, matikan
 *Confirm email* di Authentication > Providers > Email agar register langsung login.
+
+## Konfigurasi Supabase (setelah clone)
+
+1. Salin `lib/secrets.example.dart` menjadi `lib/secrets.dart`.
+2. Isi `supabaseUrl` dan `supabasePublishableKey` dari Supabase Project Settings > API.
+3. `flutter run` / `flutter build apk` langsung jalan tanpa `--dart-define`.
+
+`lib/secrets.dart` sudah ada di `.gitignore`, jadi tidak ikut ter-push ke GitHub.
