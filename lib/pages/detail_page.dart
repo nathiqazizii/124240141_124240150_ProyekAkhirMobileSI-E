@@ -8,6 +8,7 @@ import '../models/pokemon.dart';
 import '../services/pokemon_api_service.dart';
 import '../utils/pokemon_utils.dart';
 import '../widgets/loading.dart';
+import '../widgets/pokemon_3d_viewer.dart';
 import '../widgets/pokemon_card.dart';
 import '../widgets/type_chip.dart';
 
@@ -72,25 +73,48 @@ class _DetailBody extends StatelessWidget {
     return ListView(
       children: [
         Container(
-          color: mainColor.withValues(alpha: 0.25),
-          padding: const EdgeInsets.symmetric(vertical: 16),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                mainColor.withValues(alpha: 0.45),
+                mainColor.withValues(alpha: 0.08),
+              ],
+            ),
+            borderRadius: const BorderRadius.vertical(
+              bottom: Radius.circular(32),
+            ),
+          ),
+          padding: const EdgeInsets.only(top: 8, bottom: 20),
           child: Column(
             children: [
-              SizedBox(
-                height: 220,
-                child: Image.network(
-                  pokemon.imageUrl,
-                  fit: BoxFit.contain,
-                  errorBuilder: (_, __, ___) => const Icon(
-                    Icons.catching_pokemon,
-                    size: 120,
-                    color: Colors.grey,
+              Stack(
+                alignment: Alignment.center,
+                children: [
+                  // Nomor besar sebagai latar.
+                  Text(
+                    pokemon.id.toString().padLeft(3, '0'),
+                    style: TextStyle(
+                      fontSize: 120,
+                      fontWeight: FontWeight.w900,
+                      color: mainColor.withValues(alpha: 0.18),
+                    ),
                   ),
-                ),
+                  Pokemon3DViewer(
+                    imageUrl: pokemon.imageUrl,
+                    color: mainColor,
+                    height: 300,
+                  ),
+                ],
               ),
               Text(formatId(pokemon.id),
                   style: textTheme.titleMedium?.copyWith(color: Colors.grey)),
-              Text(prettyName(pokemon.name), style: textTheme.headlineMedium),
+              Text(
+                prettyName(pokemon.name),
+                style: textTheme.headlineMedium
+                    ?.copyWith(fontWeight: FontWeight.w800),
+              ),
               const SizedBox(height: 10),
               Wrap(
                 spacing: 8,
@@ -153,6 +177,7 @@ class _InfoCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Card(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 14),
         child: Column(
@@ -194,11 +219,16 @@ class _StatRow extends StatelessWidget {
           Expanded(
             child: ClipRRect(
               borderRadius: BorderRadius.circular(6),
-              child: LinearProgressIndicator(
-                value: fraction,
-                minHeight: 8,
-                color: color,
-                backgroundColor: color.withValues(alpha: 0.2),
+              child: TweenAnimationBuilder<double>(
+                tween: Tween<double>(begin: 0, end: fraction),
+                duration: const Duration(milliseconds: 900),
+                curve: Curves.easeOutCubic,
+                builder: (context, v, _) => LinearProgressIndicator(
+                  value: v,
+                  minHeight: 10,
+                  color: color,
+                  backgroundColor: color.withValues(alpha: 0.2),
+                ),
               ),
             ),
           ),

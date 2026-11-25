@@ -88,7 +88,17 @@ class _BrowseTabState extends State<_BrowseTab> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('PokéDex')),
+      appBar: AppBar(
+        centerTitle: true,
+        title: const Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.catching_pokemon, color: Colors.red),
+            SizedBox(width: 8),
+            Text('PokéDex', style: TextStyle(fontWeight: FontWeight.w800)),
+          ],
+        ),
+      ),
       body: Column(
         children: [
           Padding(
@@ -160,9 +170,22 @@ class _BrowseTabState extends State<_BrowseTab> {
                 mainAxisSpacing: 12,
               ),
               itemCount: items.length,
-              itemBuilder: (_, i) => PokemonCard(
-                pokemon: items[i],
-                onTap: () => Get.toNamed(AppRoutes.detail, arguments: items[i]),
+              itemBuilder: (_, i) => TweenAnimationBuilder<double>(
+                tween: Tween<double>(begin: 0, end: 1),
+                duration: Duration(milliseconds: 350 + (i % 2) * 120),
+                curve: Curves.easeOutCubic,
+                builder: (context, v, child) => Opacity(
+                  opacity: v,
+                  child: Transform.translate(
+                    offset: Offset(0, (1 - v) * 24),
+                    child: child,
+                  ),
+                ),
+                child: PokemonCard(
+                  pokemon: items[i],
+                  onTap: () =>
+                      Get.toNamed(AppRoutes.detail, arguments: items[i]),
+                ),
               ),
             ),
           ),
