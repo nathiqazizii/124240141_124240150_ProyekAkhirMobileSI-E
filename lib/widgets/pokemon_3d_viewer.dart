@@ -16,11 +16,26 @@ class Pokemon3DViewer extends StatefulWidget {
   final Color color;
   final double height;
 
+  /// `true` = seret untuk memutar (halaman detail). `false` = tanpa gestur putar
+  /// horizontal supaya geseran bisa dipakai induknya (mis. PageView di beranda);
+  /// seret vertikal tetap memiringkan.
+  final bool interactive;
+
+  /// Bila `false`, animasi berhenti (hemat tenaga untuk Pokémon di luar layar).
+  final bool active;
+
+  final bool showHint;
+  final int layers;
+
   const Pokemon3DViewer({
     super.key,
     required this.imageUrl,
     required this.color,
     this.height = 300,
+    this.interactive = true,
+    this.active = true,
+    this.showHint = true,
+    this.layers = 12,
   });
 
   @override
@@ -29,7 +44,6 @@ class Pokemon3DViewer extends StatefulWidget {
 
 class _Pokemon3DViewerState extends State<Pokemon3DViewer>
     with SingleTickerProviderStateMixin {
-  static const int _layers = 12;
   static const double _thickness = 28; // total tebal ekstrusi (px)
   static const double _perspective = 0.0013;
   static const double _autoSpeed = 0.7; // rad/detik
@@ -47,7 +61,19 @@ class _Pokemon3DViewerState extends State<Pokemon3DViewer>
   @override
   void initState() {
     super.initState();
-    _ticker = createTicker(_onTick)..start();
+    _ticker = createTicker(_onTick);
+    if (widget.active) _ticker.start();
+  }
+
+  @override
+  void didUpdateWidget(covariant Pokemon3DViewer old) {
+    super.didUpdateWidget(old);
+    if (widget.active && !_ticker.isActive) {
+      _last = Duration.zero;
+      _ticker.start();
+    } else if (!widget.active && _ticker.isActive) {
+      _ticker.stop();
+    }
   }
 
   @override
@@ -70,6 +96,10 @@ class _Pokemon3DViewerState extends State<Pokemon3DViewer>
     setState(() {});
   }
 
+  void _onVerticalDrag(DragUpdateDetails d) {
+    _pitch = (_pitch - d.delta.dy * 0.008).clamp(-0.6, 0.6);
+  }
+
   void _onPanUpdate(DragUpdateDetails d) {
     _yaw += d.delta.dx * 0.012;
     _pitch = (_pitch - d.delta.dy * 0.008).clamp(-0.6, 0.6);
@@ -84,9 +114,9 @@ class _Pokemon3DViewerState extends State<Pokemon3DViewer>
     final backColor = Color.lerp(widget.color, Colors.black, 0.25)!;
 
     // Urutan gambar: lapisan terjauh dari penonton lebih dulu.
-    final order = List<int>.generate(_layers, (i) => i);
+    final order = List<int>.generate(widget.layers, (i) => i);
     final sorted = facingFront ? order : order.reversed.toList();
-    final visible = facingFront ? _layers - 1 : 0;
+    final visible = facingFront ? widget.layers - 1 : 0;
 
     final stage = Stack(
       alignment: Alignment.center,
@@ -102,7 +132,7 @@ class _Pokemon3DViewerState extends State<Pokemon3DViewer>
               ..translate(
                 0.0,
                 0.0,
-                (i / (_layers - 1) - 0.5) * _thickness,
+                (i / (widget.layers - 1) - 0.5) * _thickness,
               ),
             child: Image.network(
               widget.imageUrl,
@@ -131,11 +161,14 @@ class _Pokemon3DViewerState extends State<Pokemon3DViewer>
       height: widget.height,
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
-        onPanStart: (_) => _dragging = true,
-        onPanUpdate: _onPanUpdate,
-        onPanEnd: (_) => _dragging = false,
-        onPanCancel: () => _dragging = false,
-        onDoubleTap: () => setState(() => _autoRotate = !_autoRotate),
+        onPanStart: widget.interactive ? (_) => _dragging = true : null,
+        onPanUpdate: widget.interactive ? _onPanUpdate : null,
+        onPanEnd: widget.interactive ? (_) => _dragging = false : null,
+        onPanCancel: widget.interactive ? () => _dragging = false : null,
+        onDoubleTap: widget.interactive
+            ? () => setState(() => _autoRotate = !_autoRotate)
+            : null,
+        onVerticalDragUpdate: widget.interactive ? null : _onVerticalDrag,
         child: Stack(
           alignment: Alignment.center,
           children: [
@@ -155,6 +188,7 @@ class _Pokemon3DViewerState extends State<Pokemon3DViewer>
               padding: EdgeInsets.only(bottom: widget.height * 0.06),
               child: stage,
             ),
+            if (widget.showHint)
             Positioned(
               bottom: 0,
               child: Text(

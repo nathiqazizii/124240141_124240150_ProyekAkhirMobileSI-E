@@ -1,9 +1,14 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
 import '../controllers/pokemon_controller.dart';
 import '../routes/app_routes.dart';
 import '../widgets/loading.dart';
+import '../models/pokemon.dart';
+import '../utils/pokemon_utils.dart';
+import '../widgets/pokemon_3d_carousel.dart';
 import '../widgets/pokemon_card.dart';
 import '../widgets/search_bar.dart';
 import '../widgets/type_chip.dart';
@@ -66,23 +71,14 @@ class _BrowseTab extends StatefulWidget {
 
 class _BrowseTabState extends State<_BrowseTab> {
   final PokemonController _c = Get.find<PokemonController>();
-  final ScrollController _scroll = ScrollController();
+  final GlobalKey<Pokemon3DCarouselState> _carousel = GlobalKey();
+  int _current = 0;
 
-  @override
-  void initState() {
-    super.initState();
-    _scroll.addListener(() {
-      if (_scroll.hasClients &&
-          _scroll.position.pixels >= _scroll.position.maxScrollExtent - 400) {
-        _c.loadMore();
-      }
-    });
-  }
-
-  @override
-  void dispose() {
-    _scroll.dispose();
-    super.dispose();
+  void _onPageChanged(int i) {
+    if (!mounted) return;
+    setState(() => _current = i);
+    // Muat Pokémon berikutnya sebelum pengguna menggeser sampai ujung.
+    if (i >= _c.items.length - 4) _c.loadMore();
   }
 
   @override
@@ -153,45 +149,142 @@ class _BrowseTabState extends State<_BrowseTab> {
 
     final loadingMore = _c.loadingMore.value;
     final items = _c.items.toList();
+    final index = _current.clamp(0, items.length - 1);
+    final p = items[index];
+    final accent = pokemonAccent(p.id);
+    final textTheme = Theme.of(context).textTheme;
 
-    return Column(
-      children: [
-        Expanded(
-          child: RefreshIndicator(
-            onRefresh: _c.reload,
-            child: GridView.builder(
-              controller: _scroll,
-              physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.all(12),
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
-                childAspectRatio: 0.85,
-                crossAxisSpacing: 12,
-                mainAxisSpacing: 12,
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 500),
+      curve: Curves.easeOut,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            accent.withValues(alpha: 0.35),
+            accent.withValues(alpha: 0.04),
+          ],
+        ),
+      ),
+      child: LayoutBuilder(
+        builder: (context, box) {
+          final h = math.min(340.0, box.maxHeight * 0.48);
+          return Column(
+            children: [
+              const Spacer(),
+              Stack(
+                alignment: Alignment.center,
+                children: [
+                  // Nomor besar sebagai latar.
+                  Text(
+                    p.id.toString().padLeft(3, '0'),
+                    style: TextStyle(
+                      fontSize: h * 0.42,
+                      fontWeight: FontWeight.w900,
+                      color: accent.withValues(alpha: 0.18),
+                    ),
+                  ),
+                  Pokemon3DCarousel(
+                    key: _carousel,
+                    items: items,
+                    height: h,
+                    onPageChanged: _onPageChanged,
+                    onTap: (s) =>
+                        Get.toNamed(AppRoutes.detail, arguments: s),
+                  ),
+                  Positioned(
+                    left: 0,
+                    child: IconButton(
+                      icon: const Icon(Icons.chevron_left, size: 32),
+                      onPressed: index > 0
+                          ? () => _carousel.currentState?.previous()
+                          : null,
+                    ),
+                  ),
+                  Positioned(
+                    right: 0,
+                    child: IconButton(
+                      icon: const Icon(Icons.chevron_right, size: 32),
+                      onPressed: index < items.length - 1
+                          ? () => _carousel.currentState?.next()
+                          : null,
+                    ),
+                  ),
+                ],
               ),
-              itemCount: items.length,
-              itemBuilder: (_, i) => TweenAnimationBuilder<double>(
-                tween: Tween<double>(begin: 0, end: 1),
-                duration: Duration(milliseconds: 350 + (i % 2) * 120),
-                curve: Curves.easeOutCubic,
-                builder: (context, v, child) => Opacity(
-                  opacity: v,
-                  child: Transform.translate(
-                    offset: Offset(0, (1 - v) * 24),
-                    child: child,
+              const SizedBox(height: 8),
+              Text(formatId(p.id),
+                  style: textTheme.titleMedium?.copyWith(color: Colors.grey)),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    prettyName(p.name),
+                    style: textTheme.headlineMedium
+                        ?.copyWith(fontWeight: FontWeight.w800),
+                  ),
+                  FavoriteButton(pokemonId: p.id),
+                ],
+              ),
+              _TypeRow(pokemon: p),
+              const SizedBox(height: 12),
+              FilledButton.icon(
+                onPressed: () => Get.toNamed(AppRoutes.detail, arguments: p),
+                icon: const Icon(Icons.info_outline),
+                label: const Text('Lihat detail'),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                '${index + 1} / ${items.length}${_c.hasMore.value ? '+' : ''}'
+                '   •   geser untuk ganti Pokémon',
+                style: textTheme.bodySmall?.copyWith(color: Colors.grey),
+              ),
+              if (loadingMore)
+                const Padding(
+                  padding: EdgeInsets.only(top: 6),
+                  child: SizedBox(
+                    width: 120,
+                    child: LinearProgressIndicator(),
                   ),
                 ),
-                child: PokemonCard(
-                  pokemon: items[i],
-                  onTap: () =>
-                      Get.toNamed(AppRoutes.detail, arguments: items[i]),
+              const Spacer(),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+/// Lencana tipe Pokémon yang tampil (diambil dari detail yang sudah di-cache).
+class _TypeRow extends StatelessWidget {
+  final PokemonSummary pokemon;
+
+  const _TypeRow({required this.pokemon});
+
+  @override
+  Widget build(BuildContext context) {
+    final c = Get.find<PokemonController>();
+    return SizedBox(
+      height: 36,
+      child: FutureBuilder<Pokemon>(
+        key: ValueKey(pokemon.id),
+        future: c.detail(pokemon.id),
+        builder: (context, snap) {
+          if (!snap.hasData) return const SizedBox.shrink();
+          return Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              for (final t in snap.data!.types)
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  child: TypeBadge(type: t),
                 ),
-              ),
-            ),
-          ),
-        ),
-        if (loadingMore) const LinearProgressIndicator(),
-      ],
+            ],
+          );
+        },
+      ),
     );
   }
 }
