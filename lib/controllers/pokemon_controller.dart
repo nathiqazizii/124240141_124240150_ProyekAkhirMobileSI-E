@@ -1,8 +1,12 @@
+import 'dart:math' as math;
+
 import 'package:flutter/widgets.dart';
 import 'package:get/get.dart';
 
 import '../database/local_database.dart';
 import '../models/pokemon.dart';
+import '../models/region.dart';
+import '../models/species.dart';
 import '../services/pokemon_api_service.dart';
 
 class PokemonController extends GetxController {
@@ -24,6 +28,12 @@ class PokemonController extends GetxController {
   final RxString query = ''.obs;
   final RxnString selectedType = RxnString();
 
+  /// Wilayah aktif (alur Jelajah Wilayah). Null = semua Pokémon.
+  final Rxn<Region> region = Rxn<Region>();
+
+  /// Pokémon yang terakhir dibuka (disimpan di local storage).
+  final RxList<PokemonSummary> recent = <PokemonSummary>[].obs;
+
   int _offset = 0;
   int _requestToken = 0;
   List<PokemonSummary>? _allNames;
@@ -35,6 +45,8 @@ class PokemonController extends GetxController {
   void onInit() {
     super.onInit();
     history.assignAll(_db.getHistory());
+    recent.assignAll(_db.getRecent());
+    region.value = Region.byName(_db.lastRegion); // pulihkan wilayah terakhir
     debounce<String>(query, (_) => reload(),
         time: const Duration(milliseconds: 400));
     loadTypes();
@@ -64,11 +76,13 @@ class PokemonController extends GetxController {
         if (token != _requestToken) return;
         items.assignAll(page);
         _offset = pageSize;
-        hasMore.value = page.length == pageSize;
+        hasMore.value = _hasMoreAfter(0, page);
       } else {
         var base = selectedType.value != null
             ? await _api.fetchByType(selectedType.value!)
             : await _names();
+        final r = region.value;
+        if (r != null) base = base.where((p) => r.contains(p.id)).toList();
         final q = query.value.trim().toLowerCase();
         if (q.isNotEmpty) {
           base = base
@@ -96,8 +110,9 @@ class PokemonController extends GetxController {
     try {
       final page = await _fetchPage(_offset);
       items.addAll(page);
+      final before = _offset;
       _offset += pageSize;
-      hasMore.value = page.length == pageSize;
+      hasMore.value = _hasMoreAfter(before, page);
     } on ApiException catch (e) {
       Get.snackbar('Gagal memuat', e.message, snackPosition: SnackPosition.BOTTOM);
     } finally {
@@ -107,14 +122,46 @@ class PokemonController extends GetxController {
 
   /// Ambil satu halaman; bila offline, pakai daftar nama di cache.
   Future<List<PokemonSummary>> _fetchPage(int offset) async {
+    final r = region.value;
+    final limit = r == null ? pageSize : math.min(pageSize, r.count - offset);
+    if (limit <= 0) return <PokemonSummary>[];
+    final apiOffset = r == null ? offset : r.startId - 1 + offset;
     try {
-      return await _api.fetchPage(offset: offset, limit: pageSize);
+      return await _api.fetchPage(offset: apiOffset, limit: limit);
     } on ApiException {
       final cached = _db.getNames();
       if (cached == null || cached.isEmpty) rethrow;
-      return cached.skip(offset).take(pageSize).toList();
+      return cached.skip(apiOffset).take(limit).toList();
     }
   }
+
+  /// Masih ada halaman berikutnya? Di dalam wilayah, berhenti di id terakhir.
+  bool _hasMoreAfter(int offsetBefore, List<PokemonSummary> page) {
+    final r = region.value;
+    return page.length == pageSize &&
+        (r == null || offsetBefore + pageSize < r.count);
+  }
+
+  /// Ganti wilayah aktif lalu muat ulang daftar (dashboard & Jelajah ikut berubah).
+  Future<void> setRegion(Region? r) {
+    region.value = r;
+    return reload();
+  }
+
+  /// Catat Pokémon yang dibuka ke local storage (alur "Terakhir dilihat").
+  Future<void> markViewed(PokemonSummary p) async {
+    recent.removeWhere((e) => e.id == p.id);
+    recent.insert(0, p);
+    if (recent.length > 10) recent.removeRange(10, recent.length);
+    await _db.addRecent(p);
+  }
+
+  Future<void> clearRecent() async {
+    recent.clear();
+    await _db.clearRecent();
+  }
+
+  Future<PokemonSpecies> species(int id) => _api.fetchSpecies(id);
 
   Future<List<PokemonSummary>> _names() async {
     return _allNames ??= await _api.fetchAllNames();

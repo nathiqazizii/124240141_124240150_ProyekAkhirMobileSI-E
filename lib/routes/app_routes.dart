@@ -3,10 +3,12 @@ import 'package:get/get.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../pages/about_page.dart';
+import '../pages/compare_page.dart';
 import '../pages/detail_page.dart';
 import '../pages/history_page.dart';
 import '../pages/home_page.dart';
 import '../pages/login_page.dart';
+import '../pages/onboarding_page.dart';
 import '../pages/register_page.dart';
 import '../pages/splash_page.dart';
 
@@ -14,15 +16,18 @@ class AppRoutes {
   AppRoutes._();
 
   static const String splash = '/splash';
+  static const String onboarding = '/onboarding';
   static const String login = '/login';
   static const String register = '/register';
   static const String home = '/home';
   static const String detail = '/detail';
+  static const String compare = '/compare';
   static const String history = '/history';
   static const String about = '/about';
 
   static final List<GetPage<dynamic>> pages = [
     GetPage(name: splash, page: () => const SplashPage()),
+    GetPage(name: onboarding, page: () => const OnboardingPage()),
     GetPage(name: login, page: () => const LoginPage()),
     GetPage(name: register, page: () => const RegisterPage()),
     GetPage(
@@ -33,6 +38,11 @@ class AppRoutes {
     GetPage(
       name: detail,
       page: () => const DetailPage(),
+      middlewares: [AuthMiddleware()],
+    ),
+    GetPage(
+      name: compare,
+      page: () => const ComparePage(),
       middlewares: [AuthMiddleware()],
     ),
     GetPage(

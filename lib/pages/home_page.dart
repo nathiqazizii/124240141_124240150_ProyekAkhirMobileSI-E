@@ -1,17 +1,16 @@
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
+import '../controllers/explore_controller.dart';
 import '../controllers/pokemon_controller.dart';
 import '../routes/app_routes.dart';
+import '../services/notification_service.dart';
+import '../theme/app_colors.dart';
 import '../widgets/loading.dart';
-import '../models/pokemon.dart';
-import '../utils/pokemon_utils.dart';
-import '../widgets/pokemon_3d_carousel.dart';
 import '../widgets/pokemon_card.dart';
 import '../widgets/search_bar.dart';
 import '../widgets/type_chip.dart';
+import 'dashboard_page.dart';
 import 'favorite_page.dart';
 import 'profile_page.dart';
 
@@ -27,14 +26,27 @@ class _HomePageState extends State<HomePage> {
   int _index = 0;
 
   @override
+  void initState() {
+    super.initState();
+    // P8 + P4: setelah beranda tampil, buka detail bila aplikasi dibuka dari
+    // notifikasi, lalu cek notifikasi "Pokémon hari ini".
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      NotificationService.instance.openLaunchPayload();
+      Get.find<ExploreController>().checkDailyNotification();
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: IndexedStack(
         index: _index,
-        children: const [
-          _BrowseTab(),
-          FavoritePage(),
-          ProfilePage(),
+        children: [
+          // TickerMode: hentikan animasi 3D saat tab Dashboard tidak aktif.
+          TickerMode(enabled: _index == 0, child: const DashboardPage()),
+          const _BrowseTab(),
+          const FavoritePage(),
+          const ProfilePage(),
         ],
       ),
       bottomNavigationBar: NavigationBar(
@@ -44,7 +56,12 @@ class _HomePageState extends State<HomePage> {
           NavigationDestination(
             icon: Icon(Icons.catching_pokemon_outlined),
             selectedIcon: Icon(Icons.catching_pokemon),
-            label: 'Beranda',
+            label: 'Pokédex',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.explore_outlined),
+            selectedIcon: Icon(Icons.explore),
+            label: 'Jelajah',
           ),
           NavigationDestination(
             icon: Icon(Icons.favorite_border),
@@ -52,8 +69,8 @@ class _HomePageState extends State<HomePage> {
             label: 'Favorit',
           ),
           NavigationDestination(
-            icon: Icon(Icons.person_outline),
-            selectedIcon: Icon(Icons.person),
+            icon: Icon(Icons.badge_outlined),
+            selectedIcon: Icon(Icons.badge),
             label: 'Profil',
           ),
         ],
@@ -71,14 +88,23 @@ class _BrowseTab extends StatefulWidget {
 
 class _BrowseTabState extends State<_BrowseTab> {
   final PokemonController _c = Get.find<PokemonController>();
-  final GlobalKey<Pokemon3DCarouselState> _carousel = GlobalKey();
-  int _current = 0;
+  final ScrollController _scroll = ScrollController();
 
-  void _onPageChanged(int i) {
-    if (!mounted) return;
-    setState(() => _current = i);
-    // Muat Pokémon berikutnya sebelum pengguna menggeser sampai ujung.
-    if (i >= _c.items.length - 4) _c.loadMore();
+  @override
+  void initState() {
+    super.initState();
+    _scroll.addListener(() {
+      if (_scroll.hasClients &&
+          _scroll.position.pixels >= _scroll.position.maxScrollExtent - 400) {
+        _c.loadMore();
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _scroll.dispose();
+    super.dispose();
   }
 
   @override
@@ -89,7 +115,7 @@ class _BrowseTabState extends State<_BrowseTab> {
         title: const Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.catching_pokemon, color: Colors.red),
+            Icon(Icons.catching_pokemon, color: AppColors.brand),
             SizedBox(width: 8),
             Text('PokéDex', style: TextStyle(fontWeight: FontWeight.w800)),
           ],
@@ -107,6 +133,23 @@ class _BrowseTabState extends State<_BrowseTab> {
               onHistory: () => Get.toNamed(AppRoutes.history),
             ),
           ),
+          // Wilayah aktif dipilih di Dashboard; daftar ini ikut berubah (GetX).
+          Obx(() {
+            final r = _c.region.value;
+            if (r == null) return const SizedBox.shrink();
+            return Padding(
+              padding: const EdgeInsets.fromLTRB(12, 0, 12, 4),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: InputChip(
+                  avatar: const Icon(Icons.public, size: 18),
+                  label: Text('Wilayah ${r.name} • #${r.startId}–${r.endId}'),
+                  onDeleted: () =>
+                      Get.find<ExploreController>().selectRegion(null),
+                ),
+              ),
+            );
+          }),
           SizedBox(
             height: 48,
             child: Obx(() {
@@ -114,7 +157,8 @@ class _BrowseTabState extends State<_BrowseTab> {
               final types = _c.types.toList();
               return ListView(
                 scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 children: [
                   for (final t in types)
                     Padding(
@@ -149,142 +193,45 @@ class _BrowseTabState extends State<_BrowseTab> {
 
     final loadingMore = _c.loadingMore.value;
     final items = _c.items.toList();
-    final index = _current.clamp(0, items.length - 1);
-    final p = items[index];
-    final accent = pokemonAccent(p.id);
-    final textTheme = Theme.of(context).textTheme;
 
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 500),
-      curve: Curves.easeOut,
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [
-            accent.withValues(alpha: 0.35),
-            accent.withValues(alpha: 0.04),
-          ],
+    return Column(
+      children: [
+        Expanded(
+          child: RefreshIndicator(
+            onRefresh: _c.reload,
+            child: GridView.builder(
+              controller: _scroll,
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.all(12),
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 2,
+                childAspectRatio: 0.85,
+                crossAxisSpacing: 12,
+                mainAxisSpacing: 12,
+              ),
+              itemCount: items.length,
+              itemBuilder: (_, i) => TweenAnimationBuilder<double>(
+                tween: Tween<double>(begin: 0, end: 1),
+                duration: Duration(milliseconds: 350 + (i % 2) * 120),
+                curve: Curves.easeOutCubic,
+                builder: (context, v, child) => Opacity(
+                  opacity: v,
+                  child: Transform.translate(
+                    offset: Offset(0, (1 - v) * 24),
+                    child: child,
+                  ),
+                ),
+                child: PokemonCard(
+                  pokemon: items[i],
+                  onTap: () =>
+                      Get.toNamed(AppRoutes.detail, arguments: items[i]),
+                ),
+              ),
+            ),
+          ),
         ),
-      ),
-      child: LayoutBuilder(
-        builder: (context, box) {
-          final h = math.min(340.0, box.maxHeight * 0.48);
-          return Column(
-            children: [
-              const Spacer(),
-              Stack(
-                alignment: Alignment.center,
-                children: [
-                  // Nomor besar sebagai latar.
-                  Text(
-                    p.id.toString().padLeft(3, '0'),
-                    style: TextStyle(
-                      fontSize: h * 0.42,
-                      fontWeight: FontWeight.w900,
-                      color: accent.withValues(alpha: 0.18),
-                    ),
-                  ),
-                  Pokemon3DCarousel(
-                    key: _carousel,
-                    items: items,
-                    height: h,
-                    onPageChanged: _onPageChanged,
-                    onTap: (s) =>
-                        Get.toNamed(AppRoutes.detail, arguments: s),
-                  ),
-                  Positioned(
-                    left: 0,
-                    child: IconButton(
-                      icon: const Icon(Icons.chevron_left, size: 32),
-                      onPressed: index > 0
-                          ? () => _carousel.currentState?.previous()
-                          : null,
-                    ),
-                  ),
-                  Positioned(
-                    right: 0,
-                    child: IconButton(
-                      icon: const Icon(Icons.chevron_right, size: 32),
-                      onPressed: index < items.length - 1
-                          ? () => _carousel.currentState?.next()
-                          : null,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Text(formatId(p.id),
-                  style: textTheme.titleMedium?.copyWith(color: Colors.grey)),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    prettyName(p.name),
-                    style: textTheme.headlineMedium
-                        ?.copyWith(fontWeight: FontWeight.w800),
-                  ),
-                  FavoriteButton(pokemonId: p.id),
-                ],
-              ),
-              _TypeRow(pokemon: p),
-              const SizedBox(height: 12),
-              FilledButton.icon(
-                onPressed: () => Get.toNamed(AppRoutes.detail, arguments: p),
-                icon: const Icon(Icons.info_outline),
-                label: const Text('Lihat detail'),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                '${index + 1} / ${items.length}${_c.hasMore.value ? '+' : ''}'
-                '   •   geser untuk ganti Pokémon',
-                style: textTheme.bodySmall?.copyWith(color: Colors.grey),
-              ),
-              if (loadingMore)
-                const Padding(
-                  padding: EdgeInsets.only(top: 6),
-                  child: SizedBox(
-                    width: 120,
-                    child: LinearProgressIndicator(),
-                  ),
-                ),
-              const Spacer(),
-            ],
-          );
-        },
-      ),
-    );
-  }
-}
-
-/// Lencana tipe Pokémon yang tampil (diambil dari detail yang sudah di-cache).
-class _TypeRow extends StatelessWidget {
-  final PokemonSummary pokemon;
-
-  const _TypeRow({required this.pokemon});
-
-  @override
-  Widget build(BuildContext context) {
-    final c = Get.find<PokemonController>();
-    return SizedBox(
-      height: 36,
-      child: FutureBuilder<Pokemon>(
-        key: ValueKey(pokemon.id),
-        future: c.detail(pokemon.id),
-        builder: (context, snap) {
-          if (!snap.hasData) return const SizedBox.shrink();
-          return Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              for (final t in snap.data!.types)
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 4),
-                  child: TypeBadge(type: t),
-                ),
-            ],
-          );
-        },
-      ),
+        if (loadingMore) const LinearProgressIndicator(),
+      ],
     );
   }
 }

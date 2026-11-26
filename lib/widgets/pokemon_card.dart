@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 
 import '../controllers/favorite_controller.dart';
 import '../models/pokemon.dart';
+import '../theme/app_colors.dart';
 import '../utils/pokemon_utils.dart';
 import 'tilt_3d.dart';
 
@@ -21,7 +22,7 @@ class FavoriteButton extends StatelessWidget {
         tooltip: isFav ? 'Hapus dari favorit' : 'Tambah ke favorit',
         icon: Icon(
           isFav ? Icons.favorite : Icons.favorite_border,
-          color: isFav ? Colors.red : null,
+          color: isFav ? AppColors.favorite : null,
         ),
         onPressed: () async {
           final error = await fav.toggle(pokemonId);
@@ -51,15 +52,18 @@ class PokemonCard extends StatelessWidget {
 
     return Tilt3D(
       builder: (context, tilt) => Card(
-        elevation: 4,
-        shadowColor: accent.withValues(alpha: 0.45),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+        elevation: 0,
+        color: Theme.of(context).colorScheme.surface,
+        shadowColor: accent.withValues(alpha: 0.24),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(24),
+          side: BorderSide(color: accent.withValues(alpha: 0.2)),
+        ),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
           onTap: onTap,
           child: Stack(
             children: [
-              // Latar gradien.
               Positioned.fill(
                 child: DecoratedBox(
                   decoration: BoxDecoration(
@@ -67,8 +71,8 @@ class PokemonCard extends StatelessWidget {
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                       colors: [
-                        accent.withValues(alpha: 0.30),
-                        accent.withValues(alpha: 0.05),
+                        accent.withValues(alpha: 0.19),
+                        Theme.of(context).colorScheme.surface,
                       ],
                     ),
                   ),
@@ -87,6 +91,28 @@ class PokemonCard extends StatelessWidget {
                         ),
                         Colors.white.withValues(alpha: 0),
                       ],
+                    ),
+                  ),
+                ),
+              ),
+              Positioned(
+                top: 12,
+                left: 12,
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context)
+                        .colorScheme
+                        .surface
+                        .withValues(alpha: 0.8),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Text(
+                    formatId(pokemon.id),
+                    style: textTheme.labelSmall?.copyWith(
+                      color: accent,
+                      fontWeight: FontWeight.w800,
                     ),
                   ),
                 ),
@@ -153,16 +179,13 @@ class PokemonCard extends StatelessWidget {
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      formatId(pokemon.id),
-                      style: textTheme.labelMedium
-                          ?.copyWith(color: accent.withValues(alpha: 1)),
-                    ),
-                    Text(
                       prettyName(pokemon.name),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: textTheme.titleSmall
-                          ?.copyWith(fontWeight: FontWeight.w700),
+                      style: textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: -0.2,
+                      ),
                     ),
                   ],
                 ),

@@ -7,6 +7,7 @@ import 'package:http/http.dart' as http;
 import '../config.dart';
 import '../database/local_database.dart';
 import '../models/pokemon.dart';
+import '../models/species.dart';
 
 class ApiException implements Exception {
   final String message;
@@ -112,5 +113,22 @@ class PokemonApiService {
     final pokemon = Pokemon.fromApi(data);
     await _db.savePokemon(pokemon);
     return pokemon;
+  }
+
+  /// Deskripsi + rantai evolusi. Dua request berantai: species -> evolution
+  /// chain (URL rantai ada di respons species). Di-cache.
+  Future<PokemonSpecies> fetchSpecies(int id) async {
+    final cached = _db.getSpecies(id);
+    if (cached != null) return cached;
+
+    final species = await _get('/pokemon-species/$id') as Map<String, dynamic>;
+    final chainUrl =
+        (species['evolution_chain'] as Map<String, dynamic>)['url'] as String;
+    final chain = await _get(chainUrl.replaceFirst(AppConfig.pokeApiBase, ''))
+        as Map<String, dynamic>;
+
+    final result = PokemonSpecies.fromApi(species, chain);
+    await _db.saveSpecies(id, result);
+    return result;
   }
 }

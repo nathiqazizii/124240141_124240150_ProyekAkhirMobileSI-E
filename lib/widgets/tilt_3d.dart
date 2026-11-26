@@ -59,7 +59,12 @@ class _Tilt3DState extends State<Tilt3D> {
               ..setEntry(3, 2, 0.0012)
               ..rotateX(-tilt.dy * widget.maxAngle)
               ..rotateY(tilt.dx * widget.maxAngle)
-              ..scale(_pressed ? 1.03 : 1.0),
+              ..scaleByDouble(
+                _pressed ? 1.03 : 1.0,
+                _pressed ? 1.03 : 1.0,
+                _pressed ? 1.03 : 1.0,
+                1,
+              ),
             child: widget.builder(context, tilt),
           );
         },

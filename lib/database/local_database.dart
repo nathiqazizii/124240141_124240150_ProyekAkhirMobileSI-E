@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/pokemon.dart';
+import '../models/species.dart';
 
 /// Penyimpanan lokal berbasis SharedPreferences: cache data PokéAPI
 /// (detail, daftar nama, daftar tipe) dan riwayat pencarian.
@@ -99,4 +100,65 @@ class LocalDatabase {
   Future<void> setReminder(bool value) async {
     await _prefs.setBool(_kReminder, value);
   }
+
+  // ---- Cache species & evolusi ----
+
+  PokemonSpecies? getSpecies(int id) {
+    final raw = _prefs.getString('species_$id');
+    if (raw == null) return null;
+    try {
+      return PokemonSpecies.fromJson(jsonDecode(raw) as Map<String, dynamic>);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> saveSpecies(int id, PokemonSpecies species) async {
+    await _prefs.setString('species_$id', jsonEncode(species.toJson()));
+  }
+
+  // ---- Terakhir dilihat (disimpan sebagai "id|nama") ----
+
+  static const String _kRecent = 'recent_viewed';
+  static const int _maxRecent = 10;
+
+  List<PokemonSummary> getRecent() {
+    final list = _prefs.getStringList(_kRecent) ?? const <String>[];
+    final result = <PokemonSummary>[];
+    for (final raw in list) {
+      final i = raw.indexOf('|');
+      final id = i > 0 ? int.tryParse(raw.substring(0, i)) : null;
+      if (id != null) result.add(PokemonSummary(id: id, name: raw.substring(i + 1)));
+    }
+    return result;
+  }
+
+  Future<void> addRecent(PokemonSummary p) async {
+    final list = (_prefs.getStringList(_kRecent) ?? <String>[]).toList()
+      ..removeWhere((e) => e.startsWith('${p.id}|'));
+    list.insert(0, '${p.id}|${p.name}');
+    await _prefs.setStringList(_kRecent, list.take(_maxRecent).toList());
+  }
+
+  Future<void> clearRecent() async => _prefs.remove(_kRecent);
+
+  // ---- Alur aplikasi: onboarding, tema, wilayah, notifikasi harian ----
+
+  bool get onboardingDone => _prefs.getBool('onboarding_done') ?? false;
+  Future<void> setOnboardingDone() => _prefs.setBool('onboarding_done', true);
+
+  /// 'system' | 'light' | 'dark'
+  String get themeMode => _prefs.getString('theme_mode') ?? 'system';
+  Future<void> setThemeMode(String v) => _prefs.setString('theme_mode', v);
+
+  String? get lastRegion => _prefs.getString('last_region');
+  Future<void> setLastRegion(String? v) => v == null
+      ? _prefs.remove('last_region')
+      : _prefs.setString('last_region', v);
+
+  bool get dailyPokemonEnabled => _prefs.getBool('daily_pokemon') ?? false;
+  Future<void> setDailyPokemon(bool v) => _prefs.setBool('daily_pokemon', v);
+
+  String? get lastDailyDate => _prefs.getString('last_daily_date');
+  Future<void> setLastDailyDate(String v) => _prefs.setString('last_daily_date', v);
 }

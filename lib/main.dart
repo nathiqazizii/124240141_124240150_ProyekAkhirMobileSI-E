@@ -4,11 +4,14 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'config.dart';
 import 'controllers/auth_controller.dart';
+import 'controllers/explore_controller.dart';
 import 'controllers/favorite_controller.dart';
 import 'controllers/pokemon_controller.dart';
+import 'controllers/theme_controller.dart';
 import 'database/local_database.dart';
 import 'routes/app_routes.dart';
 import 'services/notification_service.dart';
+import 'theme/app_colors.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -20,7 +23,7 @@ Future<void> main() async {
 
   await Supabase.initialize(
     url: AppConfig.supabaseUrl,
-    anonKey: AppConfig.supabaseKey,
+    publishableKey: AppConfig.supabaseKey,
   );
   await LocalDatabase.instance.init();
   try {
@@ -29,6 +32,9 @@ Future<void> main() async {
     // Notifikasi opsional; aplikasi tetap berjalan tanpanya.
   }
 
+  // Tema dibaca dari local storage sebelum aplikasi tampil.
+  Get.put<ThemeController>(ThemeController(), permanent: true);
+
   runApp(const PokedexApp());
 }
 
@@ -36,6 +42,7 @@ class AppBinding extends Bindings {
   @override
   void dependencies() {
     Get.put<AuthController>(AuthController(), permanent: true);
+    Get.put<ExploreController>(ExploreController(), permanent: true);
     Get.put<PokemonController>(PokemonController(), permanent: true);
     Get.put<FavoriteController>(FavoriteController(), permanent: true);
   }
@@ -44,20 +51,85 @@ class AppBinding extends Bindings {
 class PokedexApp extends StatelessWidget {
   const PokedexApp({super.key});
 
+  ThemeData _theme(Brightness brightness) {
+    final isDark = brightness == Brightness.dark;
+    final scheme = ColorScheme.fromSeed(
+      seedColor: AppColors.brand,
+      brightness: brightness,
+    );
+    final background =
+        isDark ? AppColors.darkBackground : AppColors.lightBackground;
+    final surface = isDark ? AppColors.darkSurface : AppColors.lightSurface;
+    final radius = BorderRadius.circular(16);
+
+    return ThemeData(
+      colorScheme: scheme,
+      scaffoldBackgroundColor: background,
+      useMaterial3: true,
+      appBarTheme: AppBarTheme(
+        backgroundColor: background,
+        foregroundColor: scheme.onSurface,
+        titleTextStyle: TextStyle(
+          color: scheme.onSurface,
+          fontSize: 20,
+          fontWeight: FontWeight.w800,
+        ),
+        elevation: 0,
+        scrolledUnderElevation: 0,
+      ),
+      navigationBarTheme: NavigationBarThemeData(
+        backgroundColor: surface,
+        indicatorColor: scheme.primary.withValues(alpha: 0.12),
+        elevation: 0,
+        labelTextStyle: WidgetStateProperty.resolveWith(
+          (states) => TextStyle(
+            fontSize: 12,
+            fontWeight: states.contains(WidgetState.selected)
+                ? FontWeight.w700
+                : FontWeight.w500,
+          ),
+        ),
+      ),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: isDark ? AppColors.darkInput : surface,
+        border: OutlineInputBorder(
+          borderRadius: radius,
+          borderSide: BorderSide.none,
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: radius,
+          borderSide: BorderSide(
+            color: scheme.outlineVariant.withValues(alpha: 0.65),
+          ),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: radius,
+          borderSide: BorderSide(color: scheme.primary, width: 1.5),
+        ),
+      ),
+      cardTheme: CardThemeData(
+        color: surface,
+        elevation: 0,
+        margin: EdgeInsets.zero,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: BorderSide(
+            color: scheme.outlineVariant.withValues(alpha: 0.55),
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return GetMaterialApp(
       title: 'PokéDex',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorSchemeSeed: Colors.red,
-        useMaterial3: true,
-      ),
-      darkTheme: ThemeData(
-        colorSchemeSeed: Colors.red,
-        brightness: Brightness.dark,
-        useMaterial3: true,
-      ),
+      theme: _theme(Brightness.light),
+      darkTheme: _theme(Brightness.dark),
+      themeMode: Get.find<ThemeController>().mode.value,
       initialBinding: AppBinding(),
       initialRoute: AppRoutes.splash,
       getPages: AppRoutes.pages,
@@ -80,7 +152,7 @@ class _ConfigErrorApp extends StatelessWidget {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: const [
-                Icon(Icons.settings_suggest, size: 64, color: Colors.red),
+                Icon(Icons.settings_suggest, size: 64, color: AppColors.brand),
                 SizedBox(height: 16),
                 Text(
                   'Konfigurasi Supabase belum diatur',

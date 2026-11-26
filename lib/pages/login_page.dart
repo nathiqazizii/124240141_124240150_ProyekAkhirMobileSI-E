@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 
 import '../controllers/auth_controller.dart';
 import '../routes/app_routes.dart';
+import '../theme/app_colors.dart';
 import '../utils/validators.dart';
 
 class LoginPage extends StatefulWidget {
@@ -52,7 +53,8 @@ class _LoginPageState extends State<LoginPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  const Icon(Icons.catching_pokemon, size: 72, color: Colors.red),
+                  const Icon(Icons.catching_pokemon,
+                      size: 72, color: AppColors.brand),
                   const SizedBox(height: 8),
                   Text(
                     'PokéDex',

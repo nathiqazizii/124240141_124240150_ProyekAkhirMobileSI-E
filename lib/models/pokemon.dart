@@ -1,8 +1,65 @@
 import '../config.dart';
+import 'pokemon_type.dart';
+
+// ---------------------------------------------------------------------------
+// P1 (OOP & Dart): kelas abstrak, pewarisan, mixin, enum, getter, interface
+// (Comparable), const constructor, factory constructor.
+// ---------------------------------------------------------------------------
+
+/// Induk semua model Pokémon: identitas + urutan alami berdasarkan nomor.
+abstract class PokemonBase implements Comparable<PokemonBase> {
+  const PokemonBase();
+
+  int get id;
+  String get name;
+
+  String get imageUrl => AppConfig.artworkUrl(id);
+
+  @override
+  int compareTo(PokemonBase other) => id.compareTo(other.id);
+}
+
+/// Tingkat kekuatan berdasarkan total base stat.
+enum PowerTier {
+  s('S', 'Legendaris'),
+  a('A', 'Sangat kuat'),
+  b('B', 'Kuat'),
+  c('C', 'Sedang'),
+  d('D', 'Dasar');
+
+  final String letter;
+  final String label;
+  const PowerTier(this.letter, this.label);
+
+  static PowerTier fromTotal(int total) {
+    if (total >= 600) return s;
+    if (total >= 500) return a;
+    if (total >= 400) return b;
+    if (total >= 300) return c;
+    return d;
+  }
+}
+
+/// Mixin analisis kekuatan: dipasang pada kelas yang punya daftar [stats].
+mixin PowerAnalysis {
+  List<PokemonStat> get stats;
+
+  int get totalPower => stats.fold(0, (sum, s) => sum + s.value);
+  PowerTier get tier => PowerTier.fromTotal(totalPower);
+
+  int statValue(String name) {
+    for (final s in stats) {
+      if (s.name == name) return s.value;
+    }
+    return 0;
+  }
+}
 
 /// Data ringkas untuk daftar (id + nama), cukup untuk kartu di grid.
-class PokemonSummary {
+class PokemonSummary extends PokemonBase {
+  @override
   final int id;
+  @override
   final String name;
 
   const PokemonSummary({required this.id, required this.name});
@@ -21,8 +78,6 @@ class PokemonSummary {
       PokemonSummary(id: json['id'] as int, name: json['name'] as String);
 
   Map<String, dynamic> toJson() => {'id': id, 'name': name};
-
-  String get imageUrl => AppConfig.artworkUrl(id);
 }
 
 class PokemonStat {
@@ -37,8 +92,10 @@ class PokemonStat {
   Map<String, dynamic> toJson() => {'name': name, 'value': value};
 }
 
-class Pokemon {
+class Pokemon extends PokemonBase with PowerAnalysis {
+  @override
   final int id;
+  @override
   final String name;
   final List<String> types;
 
@@ -46,6 +103,7 @@ class Pokemon {
   final int height;
   final int weight;
   final List<String> abilities;
+  @override
   final List<PokemonStat> stats;
 
   const Pokemon({
@@ -60,7 +118,11 @@ class Pokemon {
 
   double get heightM => height / 10;
   double get weightKg => weight / 10;
-  String get imageUrl => AppConfig.artworkUrl(id);
+
+  /// Kelemahan & ketahanan tipe (lihat [TypeMatchup]).
+  TypeMatchup get matchup => TypeMatchup.of(types);
+
+  PokemonSummary get summary => PokemonSummary(id: id, name: name);
 
   /// Dari respons `/pokemon/{id}` PokéAPI.
   factory Pokemon.fromApi(Map<String, dynamic> json) {

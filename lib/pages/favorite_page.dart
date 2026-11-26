@@ -5,6 +5,7 @@ import '../controllers/favorite_controller.dart';
 import '../controllers/pokemon_controller.dart';
 import '../models/pokemon.dart';
 import '../routes/app_routes.dart';
+import '../theme/app_colors.dart';
 import '../utils/pokemon_utils.dart';
 import '../widgets/loading.dart';
 
@@ -24,9 +25,7 @@ class _FavoritePageState extends State<FavoritePage> {
   void initState() {
     super.initState();
     // Nama dipakai untuk menampilkan favorit; bila gagal, pakai nama cadangan.
-    _namesFuture = _pokemon
-        .ensureNames()
-        .catchError((_) => <PokemonSummary>[]);
+    _namesFuture = _pokemon.ensureNames().catchError((_) => <PokemonSummary>[]);
   }
 
   @override
@@ -63,7 +62,8 @@ class _FavoritePageState extends State<FavoritePage> {
           children: const [
             SizedBox(height: 120),
             EmptyView(
-              message: 'Belum ada favorit.\nKetuk ♥ pada Pokémon untuk menyimpannya.',
+              message:
+                  'Belum ada favorit.\nKetuk ♥ pada Pokémon untuk menyimpannya.',
               icon: Icons.favorite_border,
             ),
           ],
@@ -94,12 +94,13 @@ class _FavoritePageState extends State<FavoritePage> {
             title: Text(prettyName(p.name)),
             subtitle: Text(formatId(p.id)),
             trailing: IconButton(
-              icon: const Icon(Icons.favorite, color: Colors.red),
+              icon: const Icon(Icons.favorite, color: AppColors.favorite),
               tooltip: 'Hapus dari favorit',
               onPressed: () async {
                 final err = await _fav.toggle(p.id);
                 if (err != null) {
-                  Get.snackbar('Gagal', err, snackPosition: SnackPosition.BOTTOM);
+                  Get.snackbar('Gagal', err,
+                      snackPosition: SnackPosition.BOTTOM);
                 }
               },
             ),
